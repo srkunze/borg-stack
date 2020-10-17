@@ -71,7 +71,8 @@ def mount_func(args):
     check_archive_pattern(args.archive_pattern)
     args.archives = get_archives(args.path_to_repo, args.archive_pattern, args.mount_point)
     args.lowerdir_spec = get_lowerdir_spec(args.mount_point, args.archives)
-    args.merged_mp = os.path.join(args.mount_point, f'{PREFIX_MERGED_MOUNT_POINT}{args.path_to_repo}')
+    merged_mount_point_suffix = args.repository_or_archive_pattern.replace('::', '--').replace('*', '')
+    args.merged_mp = os.path.join(args.mount_point, f'{PREFIX_MERGED_MOUNT_POINT}{merged_mount_point_suffix}')
 
     for archive in args.archives:
         os.makedirs(archive['mount_point'], exist_ok=True)
