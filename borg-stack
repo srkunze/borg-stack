@@ -36,6 +36,12 @@ def main():
 
 
 def create_func(args):
+    """
+    cmdline function
+
+    Create a new borg archive using a fnmatch pattern such as /path/to/repo/::myhome*
+    The * will be expanded by the current utcnow timestamp
+    """
     args.path_to_repo, _, args.archive_pattern = args.repository_or_archive_pattern.partition('::')
     check_archive_pattern(args.archive_pattern, for_creation=True)
     archives = get_archives(args.path_to_repo, args.archive_pattern)
@@ -51,6 +57,12 @@ def create_func(args):
 
 
 def mount_func(args):
+    """
+    cmdline function
+
+    Mount all borg archives matching a fnmatch pattern such as /path/to/repo/::myhome*
+    Archives are mounted in the order of their creation date.
+    """
     umount_func(copy.copy(args), fail_safe=True)
 
     args.path_to_repo, _, args.archive_pattern = args.repository_or_archive_pattern.partition('::')
@@ -68,6 +80,11 @@ def mount_func(args):
 
 
 def umount_func(args, fail_safe=False):
+    """
+    cmdline function
+
+    Unmount mount points created by the mount command.
+    """
     if fail_safe and not os.path.isdir(args.mount_point):
         return
     for dir in get_active_mounts(args, fail_safe):
