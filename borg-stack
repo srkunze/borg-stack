@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+import argparse
+import copy
+import json
+import os
+import subprocess
+import sys
+from datetime import datetime
+from fnmatch import fnmatch
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    subparsers = parser.add_subparsers()
+
+    create_parser = subparsers.add_parser('create')
+    create_parser.add_argument('--borg_create_options', nargs='*', default=[])
+    create_parser.add_argument('repository_or_archive_pattern')
+    create_parser.add_argument('borg_create_parameters', nargs='*', default=[])
+    create_parser.set_defaults(func=create_func)
+
+    mount_parser = subparsers.add_parser('mount')
+    mount_parser.add_argument('repository_or_archive_pattern')
+    mount_parser.add_argument('mount_point')
+    mount_parser.set_defaults(func=mount_func)
+
+    umount_parser = subparsers.add_parser('umount')
+    umount_parser.add_argument('mount_point')
+    umount_parser.set_defaults(func=umount_func)
+
+    args = parser.parse_args()
+    if not hasattr(args, 'func'):
+        print(parser.print_help())
+        exit(1)
+    args.func(args)
+
+
+def create_func(args):
+    args.path_to_repo, _, args.archive_pattern = args.repository_or_archive_pattern.partition('::')
+    check_archive_pattern(args.archive_pattern, for_creation=True)
+    archives = get_archives(args.path_to_repo, args.archive_pattern)
+    if not archives:
+        input(f'No archives with that pattern ({args.archive_pattern}) created yet. Continue? (Ctrl-C to abort)')
+    new_archive_name = args.archive_pattern.replace('*', datetime.utcnow().strftime('%Y%m%d%H%M%S'))
+    cmd = ['borg', 'create']
+    cmd += args.borg_create_options
+    cmd += [get_archive_spec(args.path_to_repo, new_archive_name)]
+    cmd += args.borg_create_parameters
+    print(cmd)
+    subprocess.check_call(cmd)
+
+
+def mount_func(args):
+    umount_func(copy.copy(args), fail_safe=True)
+
+    args.path_to_repo, _, args.archive_pattern = args.repository_or_archive_pattern.partition('::')
+    check_archive_pattern(args.archive_pattern)
+    args.archives = get_archives(args.path_to_repo, args.archive_pattern, args.mount_point)
+    args.lowerdir_spec = get_lowerdir_spec(args.mount_point, args.archives)
+    args.merged_mp = os.path.join(args.mount_point, f'merged-{args.path_to_repo}')
+
+    for archive in args.archives:
+        os.makedirs(archive['mount_point'], exist_ok=True)
+        subprocess.check_output(['borg', 'mount', archive['spec'], archive['mount_point']])
+
+    os.makedirs(args.merged_mp, exist_ok=True)
+    subprocess.check_call(['fuse-overlayfs', '-o', args.lowerdir_spec, args.merged_mp])
+
+
+def umount_func(args, fail_safe=False):
+    if fail_safe and not os.path.isdir(args.mount_point):
+        return
+    for dir in get_active_mounts(args, fail_safe):
+        subprocess.call(['umount', dir])
+
+
+def check_archive_pattern(archive_pattern, for_creation=False):
+    if ':' in archive_pattern:
+        print('archive_pattern must not contain ":" - overlayfs used ":" to separate layers')
+        sys.exit(1)
+    if for_creation and not archive_pattern.endswith('*'):
+        print('archive_pattern should end with "*"')
+        sys.exit(1)
+    if for_creation and archive_pattern.count('*') > 1:
+        print('archive_pattern should contain only one "*"')
+        sys.exit(1)
+
+
+def get_archives(path_to_repo, archive_pattern=None, mount_point=None):
+    borg_list_output = subprocess.check_output(['borg', 'list', '--json', path_to_repo]).decode()
+    archives = json.loads(borg_list_output)['archives']
+    sorted_archives = sorted(archives, key=lambda a: a['start'])
+    archives = [archive for archive in sorted_archives if fnmatch_or_name(archive['name'], archive_pattern)]
+    for archive in archives:
+        if mount_point:
+            archive['mount_point'] = get_archives_mp(mount_point, archive['name'])
+        archive['spec'] = get_archive_spec(path_to_repo, archive['name'])
+    return archives
+
+
+def get_archive_spec(path_to_repo, archive_name):
+    return f'{path_to_repo}::{archive_name}'
+
+
+def get_archives_mp(mount_point, archive_name=None):
+    if archive_name:
+        return os.path.join(mount_point, 'archives', archive_name)
+    return os.path.join(mount_point, 'archives')
+
+
+def get_lowerdir_spec(mount_point, archives):
+    return 'lowerdir=' + ':'.join(get_archives_mp(mount_point, archive['name']) for archive in reversed(archives))
+
+
+def get_active_mounts(args, fail_safe):
+    for dir in get_possible_mounts(args, fail_safe):
+        if subprocess.call(['findmnt', dir], stdout=subprocess.DEVNULL) == 0:
+            yield dir
+
+
+def get_possible_mounts(args, fail_safe):
+    for dir in os.listdir(args.mount_point):
+        if dir.startswith('merged-'):
+            yield os.path.join(args.mount_point, dir)
+    archives_mp = get_archives_mp(args.mount_point)
+    if fail_safe and not os.path.isdir(archives_mp):
+        return
+    for dir in os.listdir(archives_mp):
+        yield os.path.join(archives_mp, dir)
+
+
+def fnmatch_or_name(name, pat):
+    if not pat:
+        return name
+    return fnmatch(name, pat)
+
+
+if __name__ == '__main__':
+    main()
