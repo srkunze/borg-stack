@@ -8,6 +8,8 @@ import sys
 from datetime import datetime
 from fnmatch import fnmatch
 
+PREFIX_MERGED_MOUNT_POINT = 'merged-'
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -69,7 +71,7 @@ def mount_func(args):
     check_archive_pattern(args.archive_pattern)
     args.archives = get_archives(args.path_to_repo, args.archive_pattern, args.mount_point)
     args.lowerdir_spec = get_lowerdir_spec(args.mount_point, args.archives)
-    args.merged_mp = os.path.join(args.mount_point, f'merged-{args.path_to_repo}')
+    args.merged_mp = os.path.join(args.mount_point, f'{PREFIX_MERGED_MOUNT_POINT}{args.path_to_repo}')
 
     for archive in args.archives:
         os.makedirs(archive['mount_point'], exist_ok=True)
@@ -137,7 +139,7 @@ def get_active_mounts(args, fail_safe):
 
 def get_possible_mounts(args, fail_safe):
     for dir in os.listdir(args.mount_point):
-        if dir.startswith('merged-'):
+        if dir.startswith(PREFIX_MERGED_MOUNT_POINT):
             yield os.path.join(args.mount_point, dir)
     archives_mp = get_archives_mp(args.mount_point)
     if fail_safe and not os.path.isdir(archives_mp):
