@@ -3,12 +3,16 @@ import argparse
 import copy
 import json
 import os
+import re
 import subprocess
 import sys
+from collections import defaultdict
 from datetime import datetime
 from fnmatch import fnmatch
 
 PREFIX_MERGED_MOUNT_POINT = 'merged-'
+NOW_SCHEME = datetime.utcnow().strftime('%Y%m%d%H%M%S')
+SCHEME_MATCHER = re.compile(r'(\w*)\d' * len(NOW_SCHEME) + r'$').match
 
 
 def main():
@@ -20,6 +24,14 @@ def main():
     create_parser.add_argument('repository_or_archive_pattern')
     create_parser.add_argument('borg_create_parameters', nargs='*', default=[])
     create_parser.set_defaults(func=create_func)
+
+    list_parser = subparsers.add_parser('list')
+    list_parser.add_argument('repository_or_archive_pattern')
+    list_parser.set_defaults(func=list_func)
+
+    delete_parser = subparsers.add_parser('delete')
+    delete_parser.add_argument('repository_or_archive_pattern')
+    delete_parser.set_defaults(func=delete_func)
 
     mount_parser = subparsers.add_parser('mount')
     mount_parser.add_argument('repository_or_archive_pattern')
@@ -49,13 +61,40 @@ def create_func(args):
     archives = get_archives(args.path_to_repo, args.archive_pattern)
     if not archives:
         input(f'No archives with that pattern ({args.archive_pattern}) created yet. Continue? (Ctrl-C to abort)')
-    new_archive_name = args.archive_pattern.replace('*', datetime.utcnow().strftime('%Y%m%d%H%M%S'))
+    new_archive_name = args.archive_pattern.replace('*', NOW_SCHEME)
     cmd = ['borg', 'create']
     cmd += args.borg_create_options
     cmd += [get_archive_spec(args.path_to_repo, new_archive_name)]
     cmd += args.borg_create_parameters
     print(cmd)
     subprocess.check_call(cmd)
+
+
+def list_func(args):
+    """
+    cmdline function
+
+    List all borg archive using a fnmatch pattern such as /path/to/repo/::myhome*
+    """
+    archives = get_archives_from_args(args)
+    archive_groups = group_by_naming_scheme(archives)
+    has_prev = False
+    for group, archives in archive_groups.items():
+        if has_prev:
+            print()
+        print(group)
+        for archive in archives:
+            created = datetime.fromisoformat(archive['start']).strftime('%a, %Y-%m-%d %H:%M:%S')
+            print(f'  {archive["name"]}            {created} [{archive["id"]}]')
+            has_prev = True
+
+
+def delete_func(args):
+    archives = get_archives_from_args(args)
+    for archive in archives:
+        cmd = ['borg', 'delete', args.path_to_repo + '::' + archive['name']]
+        print(cmd)
+        subprocess.check_call(cmd)
 
 
 def mount_func(args):
@@ -106,6 +145,12 @@ def check_archive_pattern(archive_pattern, for_creation=False):
         sys.exit(1)
 
 
+def get_archives_from_args(args, for_creation=False):
+    args.path_to_repo, _, args.archive_pattern = args.repository_or_archive_pattern.partition('::')
+    check_archive_pattern(args.archive_pattern, for_creation)
+    return get_archives(args.path_to_repo, args.archive_pattern, getattr(args, 'mount_point', None))
+
+
 def get_archives(path_to_repo, archive_pattern=None, mount_point=None):
     borg_list_output = subprocess.check_output(['borg', 'list', '--json', path_to_repo]).decode()
     archives = json.loads(borg_list_output)['archives']
@@ -153,6 +198,15 @@ def fnmatch_or_name(name, pat):
     if not pat:
         return name
     return fnmatch(name, pat)
+
+
+def group_by_naming_scheme(archives):
+    groups = defaultdict(list)
+    for archive in archives:
+        match = SCHEME_MATCHER(archive['name'])
+        if match:
+            groups[match.group(1)].append(archive)
+    return groups
 
 
 if __name__ == '__main__':
