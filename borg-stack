@@ -128,18 +128,6 @@ def umount_func(args, fail_safe=False):
         subprocess.call(['umount', dir])
 
 
-def check_archive_pattern(archive_pattern, for_creation=False):
-    if ':' in archive_pattern:
-        print('archive_pattern must not contain ":" - overlayfs used ":" to separate layers')
-        sys.exit(1)
-    if for_creation and not archive_pattern.endswith('*'):
-        print('archive_pattern should end with "*"')
-        sys.exit(1)
-    if for_creation and archive_pattern.count('*') > 1:
-        print('archive_pattern should contain only one "*"')
-        sys.exit(1)
-
-
 def get_archives_from_args(args, for_creation=False):
     args.path_to_repo, _, args.archive_pattern = args.repository_or_archive_pattern.partition('::')
     check_archive_pattern(args.archive_pattern, for_creation)
@@ -156,6 +144,18 @@ def get_archives(path_to_repo, archive_pattern=None, mount_point=None):
             archive['mount_point'] = get_archives_mp(mount_point, archive['name'])
         archive['spec'] = get_archive_spec(path_to_repo, archive['name'])
     return archives
+
+
+def check_archive_pattern(archive_pattern, for_creation=False):
+    if ':' in archive_pattern:
+        print('archive_pattern must not contain ":" - overlayfs used ":" to separate layers')
+        sys.exit(1)
+    if for_creation and not archive_pattern.endswith('*'):
+        print('archive_pattern should end with "*"')
+        sys.exit(1)
+    if for_creation and archive_pattern.count('*') > 1:
+        print('archive_pattern should contain only one "*"')
+        sys.exit(1)
 
 
 def get_archive_spec(path_to_repo, archive_name):
