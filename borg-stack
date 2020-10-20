@@ -56,9 +56,7 @@ def create_func(args):
     Create a new borg archive using a fnmatch pattern such as /path/to/repo/::myhome*
     The * will be expanded by the current utcnow timestamp
     """
-    args.path_to_repo, _, args.archive_pattern = args.repository_or_archive_pattern.partition('::')
-    check_archive_pattern(args.archive_pattern, for_creation=True)
-    archives = get_archives(args.path_to_repo, args.archive_pattern)
+    archives = get_archives_from_args(args, for_creation=True)
     if not archives:
         input(f'No archives with that pattern ({args.archive_pattern}) created yet. Continue? (Ctrl-C to abort)')
     new_archive_name = args.archive_pattern.replace('*', NOW_SCHEME)
@@ -110,7 +108,7 @@ def mount_func(args):
     args.lowerdir_spec = get_lowerdir_spec(args.mount_point, archives)
     args.merged_mp = get_merged_mp(args.mount_point, args.path_to_repo, args.archive_pattern)
 
-    for archive in args.archives:
+    for archive in archives:
         os.makedirs(archive['mount_point'], exist_ok=True)
         subprocess.check_output(['borg', 'mount', archive['spec'], archive['mount_point']])
 
