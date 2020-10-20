@@ -106,12 +106,9 @@ def mount_func(args):
     """
     umount_func(copy.copy(args), fail_safe=True)
 
-    args.path_to_repo, _, args.archive_pattern = args.repository_or_archive_pattern.partition('::')
-    check_archive_pattern(args.archive_pattern)
-    args.archives = get_archives(args.path_to_repo, args.archive_pattern, args.mount_point)
-    args.lowerdir_spec = get_lowerdir_spec(args.mount_point, args.archives)
-    merged_mount_point_suffix = args.repository_or_archive_pattern.replace('::', '--').replace('*', '')
-    args.merged_mp = os.path.join(args.mount_point, f'{PREFIX_MERGED_MOUNT_POINT}{merged_mount_point_suffix}')
+    archives = get_archives_from_args(args)
+    args.lowerdir_spec = get_lowerdir_spec(args.mount_point, archives)
+    args.merged_mp = get_merged_mp(args.mount_point, args.path_to_repo, args.archive_pattern)
 
     for archive in args.archives:
         os.makedirs(archive['mount_point'], exist_ok=True)
@@ -171,6 +168,14 @@ def get_archives_mp(mount_point, archive_name=None):
     if archive_name:
         return os.path.join(mount_point, 'archives', archive_name)
     return os.path.join(mount_point, 'archives')
+
+
+def get_merged_mp(mount_point, path_to_repo, archive_pattern):
+    if path_to_repo.endswith('/'):
+        path_to_repo = path_to_repo[:-1]
+    repo_name = path_to_repo.rsplit('/', 1)[-1]
+    archive_pattern = archive_pattern.replace('::', '--').replace('*', '')
+    return os.path.join(mount_point, f'{PREFIX_MERGED_MOUNT_POINT}{repo_name}-{archive_pattern}')
 
 
 def get_lowerdir_spec(mount_point, archives):
