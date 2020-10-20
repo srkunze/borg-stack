@@ -105,15 +105,15 @@ def mount_func(args):
     umount_func(copy.copy(args), fail_safe=True)
 
     archives = get_archives_from_args(args)
-    args.lowerdir_spec = get_lowerdir_spec(args.mount_point, archives)
-    args.merged_mp = get_merged_mp(args.mount_point, args.path_to_repo, args.archive_pattern)
+    lowerdir_spec = get_lowerdir_spec(args.mount_point, archives)
+    merged_mp = get_merged_mp(args.mount_point, args.path_to_repo, args.archive_pattern)
 
     for archive in archives:
         os.makedirs(archive['mount_point'], exist_ok=True)
         subprocess.check_output(['borg', 'mount', archive['spec'], archive['mount_point']])
 
-    os.makedirs(args.merged_mp, exist_ok=True)
-    subprocess.check_call(['fuse-overlayfs', '-o', args.lowerdir_spec, args.merged_mp])
+    os.makedirs(merged_mp, exist_ok=True)
+    subprocess.check_call(['fuse-overlayfs', '-o', lowerdir_spec, merged_mp])
 
 
 def umount_func(args, fail_safe=False):
