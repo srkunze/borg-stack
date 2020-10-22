@@ -38,3 +38,8 @@ class BorgStackTestCase(TestCase):
         self.assertIn('test_stack_1', output)
         self.assertIn('test_stack_2', output)
         self.assertIn('test_stack_3', output)
+
+    def test_delete(self):
+        subprocess.check_call(['borg-stack', 'delete', self.path_to_repo + '::test_stack_*'])
+        output = subprocess.check_output(['borg-stack', 'list', self.path_to_repo + '::test_stack_*']).decode()
+        self.assertFalse(output)
