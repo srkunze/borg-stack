@@ -5,21 +5,36 @@ from unittest.case import TestCase
 
 
 class BorgStackTestCase(TestCase):
-    def test_borg_stack_create(self):
+    def setUp(self):
         tmpdir = mkdtemp(prefix='borg_stack_test_')
-        borg_repository_path = os.path.join(tmpdir, 'repo')
-        subprocess.check_call(['borg', 'init', '--encryption', 'none', borg_repository_path])
-
-        source_dir = os.path.join(tmpdir, 'source_dir')
-        os.mkdir(source_dir)
-        test_file = os.path.join(source_dir, 'source_dir')
-        with open(test_file, 'w') as file:
+        self.path_to_repo = os.path.join(tmpdir, 'repo')
+        subprocess.check_call(['borg', 'init', '--encryption', 'none', self.path_to_repo])
+        self.source_dir = os.path.join(tmpdir, 'source_dir')
+        os.mkdir(self.source_dir)
+        self.test_file_path = os.path.join(self.source_dir, 'source_dir')
+        with open(self.test_file_path, 'w') as file:
             file.write('borg-test-content')
-        subprocess.check_call(['borg-stack', 'create', borg_repository_path + '::test_stack_1*', source_dir])
-        subprocess.check_call(['borg-stack', 'create', borg_repository_path + '::test_stack_2*', test_file])
-        subprocess.check_call(['borg-stack', 'create', borg_repository_path + '::test_stack_3*', source_dir])
+    
+    def test_create_and_list(self):
+        output = subprocess.check_output(['borg-stack', 'list', self.path_to_repo + '::test_stack_*']).decode()
+        self.assertNotIn('test_stack_1', output)
+        self.assertNotIn('test_stack_2', output)
+        self.assertNotIn('test_stack_3', output)
 
-        output = subprocess.check_output(['borg-stack', 'list', borg_repository_path + '::test_stack_*']).decode()
+        subprocess.check_call(['borg-stack', 'create', self.path_to_repo + '::test_stack_1*', self.source_dir])
+        output = subprocess.check_output(['borg-stack', 'list', self.path_to_repo + '::test_stack_*']).decode()
+        self.assertIn('test_stack_1', output)
+        self.assertNotIn('test_stack_2', output)
+        self.assertNotIn('test_stack_3', output)
+
+        subprocess.check_call(['borg-stack', 'create', self.path_to_repo + '::test_stack_2*', self.test_file_path])
+        output = subprocess.check_output(['borg-stack', 'list', self.path_to_repo + '::test_stack_*']).decode()
+        self.assertIn('test_stack_1', output)
+        self.assertIn('test_stack_2', output)
+        self.assertNotIn('test_stack_3', output)
+
+        subprocess.check_call(['borg-stack', 'create', self.path_to_repo + '::test_stack_3*', self.source_dir])
+        output = subprocess.check_output(['borg-stack', 'list', self.path_to_repo + '::test_stack_*']).decode()
         self.assertIn('test_stack_1', output)
         self.assertIn('test_stack_2', output)
         self.assertIn('test_stack_3', output)
