@@ -51,16 +51,17 @@ me@here:~$ borg-stack mount /path/to/repo/::myhome* /mnt/myhome
 What's in the Borg repository?
 
 ``` bash
-me@here:~$ borg list /path/to/repo/
-myhome20190717170550                 Wed, 2019-07-17 17:05:50 [d5f077465e54290e1a49d900f1d7af799b7c38a44d2b91be473bdd2fd312c343]
-myhome20201019220224                 Mon, 2020-10-19 22:02:24 [6621e47907f10f044f683b479a1f455939352ae78fab853d55edd70665fa1493]
-myhome20210309180215                 Tue, 2021-03-09 18:02:15 [d92508a0f6bd4c0d3a7c3e914d40dc306368181af32f5711ef82852970ee7449]
+me@here:~$ borg-stack list /path/to/repo/
+myhome*
+  myhome20190717170550                 Wed, 2019-07-17 17:05:50 [d5f077465e54290e1a49d900f1d7af799b7c38a44d2b91be473bdd2fd312c343]
+  myhome20201019220224                 Mon, 2020-10-19 22:02:24 [6621e47907f10f044f683b479a1f455939352ae78fab853d55edd70665fa1493]
+  myhome20210309180215                 Tue, 2021-03-09 18:02:15 [d92508a0f6bd4c0d3a7c3e914d40dc306368181af32f5711ef82852970ee7449]
 ```
 
 ## Features
 
 BorgBackup provides full backups only.
-That simplifies things a lot but comes at a price of reduced flexibility for the user under certain conditions.
+That simplifies things a lot but comes at the price of reduced flexibility for the user under certain conditions.
 Sometimes, a Borg archive is larger than the possibly available space to restore it.
 That means, you can only restore parts of it.
 It usually happens when migrating from an rsync-maintained backup, grown carefully over time.
@@ -70,12 +71,13 @@ Because you can create only full backups with Borg, your brand-new archive will 
 As time goes on, this could lead to many Borg archives,
  each of which with different directory layouts and different parts of your data.
 
-BorgStack provides a way to:
+Therefore, BorgStack provides a way to:
 
-- create Borg archives in an organized way (user-defined prefix + timestamp)
-- select a set of archives in a glob-style manner (`prefix*`)
+- create a stack of archives in an organized way (user-defined prefix + timestamp)
+- select a stack of archives in a glob-style manner (`prefix*`)
 - mount a layered version of your data, stacked from newest to oldest
 - umount a stack of archives
+- delete a stack of archives
 
 So, you will always find the most up-to-date version of all backup'ed files.
 
@@ -94,7 +96,7 @@ mount-point/archives/<archive-2>
 mount-point/archives/...
 mount-point/archives/<archive-n-1>
 mount-point/archives/<archive-n>
-mount-point/merged-<repository>-<archive>  # here's the updated version of your full backup
+mount-point/merged-<repository>-<archive>  # here's the content of your Borg stack
 ```
 
 All the mount-points under `mount-point/archives/*` are themselves mount-points created by Borg.
@@ -103,8 +105,8 @@ BorgStack uses OverlayFS to stack these mounted archives in the order of their c
 
 The resulting stacked data is available at `mount-point/merged-<repository>-<archive>`.
 
-In order to minimize the hassle of unmounting them all, BorgStack provide the command `umount`.
-It searched through the provided layout above and unmounts all of them if needed.
+In order to minimize the hassle of unmounting them all, BorgStack provides the command `umount`.
+It sifts through the provided layout above to find all mount points and unmounts them all.
 
 ## Flexible Naming Schemes
 
@@ -118,15 +120,20 @@ me@here:~$ # and for the phone
 me@here:~$ borg-stack create /path/to/repo/::myphone* /mnt/phone
 ```
 
-Both Borg stacks can happily live together in a single repository.
+Borg stacks can happily live together in a single repository.
 
 ``` bash
-you@here:~$ borg list /path/to/repo/
-myhome20190717170550                 Wed, 2019-07-17 17:05:50 [d5f077465e54290e1a49d900f1d7af799b7c38a44d2b91be473bdd2fd312c343]
-myhome20201019220224                 Mon, 2020-10-19 22:02:24 [6621e47907f10f044f683b479a1f455939352ae78fab853d55edd70665fa1493]
-myphone20201020195244                Tue, 2020-10-20 21:52:44 [f3d845264a119d33c2c534da03d9df6209eafb587c73d9c29f93663087eba732]
-myhome20210309180215                 Tue, 2021-03-09 18:02:15 [d92508a0f6bd4c0d3a7c3e914d40dc306368181af32f5711ef82852970ee7449]
-yourhome20210313160210               Sat, 2021-03-13 16:02:10 [f365ee7b892aa89b192192373e7db48158568776c0f5de080c48721d2da7f4d8]
+you@here:~$ borg-stack list /path/to/repo/
+myhome*
+  myhome20190717170550                 Wed, 2019-07-17 17:05:50 [d5f077465e54290e1a49d900f1d7af799b7c38a44d2b91be473bdd2fd312c343]
+  myhome20201019220224                 Mon, 2020-10-19 22:02:24 [6621e47907f10f044f683b479a1f455939352ae78fab853d55edd70665fa1493]
+  myhome20210309180215                 Tue, 2021-03-09 18:02:15 [d92508a0f6bd4c0d3a7c3e914d40dc306368181af32f5711ef82852970ee7449]
+
+myphone*
+  myphone20201020195244                Tue, 2020-10-20 21:52:44 [f3d845264a119d33c2c534da03d9df6209eafb587c73d9c29f93663087eba732]
+
+yourhome*
+  yourhome20210313160210               Sat, 2021-03-13 16:02:10 [f365ee7b892aa89b192192373e7db48158568776c0f5de080c48721d2da7f4d8]
 ```
 
 And you can access them the same way you are used to.
