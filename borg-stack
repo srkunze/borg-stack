@@ -205,7 +205,9 @@ def group_by_naming_scheme(archives):
     for archive in archives:
         match = SCHEME_MATCHER(archive['name'])
         if match:
-            groups[match.group(1)].append(archive)
+            groups[match.group(1) + '*'].append(archive)
+        else:
+            groups['others'].append(archive)
     return groups
 
 
