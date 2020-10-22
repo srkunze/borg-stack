@@ -57,7 +57,7 @@ def create_func(args):
     The * will be expanded by the current utcnow timestamp
     """
     archives = get_archives_from_args(args, for_creation=True)
-    if not archives:
+    if not archives and os.isatty(sys.stdin.fileno()):
         input(f'No archives with that pattern ({args.archive_pattern}) created yet. Continue? (Ctrl-C to abort)')
     new_archive_name = args.archive_pattern.replace('*', NOW_SCHEME)
     cmd = ['borg', 'create']
